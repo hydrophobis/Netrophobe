@@ -126,7 +126,7 @@ class Browser(QMainWindow):
         self.tabs.setCurrentWidget(new_browser)
 
         # Add close button to the tab
-        close_button = QPushButton("✕")
+        close_button = QPushButton('x', self) # TODO Doesnt show the fucking x for some reason
         close_button.setFixedSize(20, 20)
         close_button.setObjectName("CloseButton")
         close_button.clicked.connect(lambda: self.close_tab(self.tab_count - 1))  # Close the tab
