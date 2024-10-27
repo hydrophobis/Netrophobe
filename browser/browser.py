@@ -1,20 +1,32 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QMenuBar, QAction, QTabWidget
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QUrl, Qt
 from PyQt5.QtWebEngineWidgets import QWebEngineProfile
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QTabBar
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QTabBar, QFileDialog, QMessageBox
+from PyQt5.QtGui import QFont
 import json
+import os
+
+from browser.extension import ExtensionManager
+from browser.settings import SettingsDialog
 
 class Browser(QMainWindow):
     def __init__(self):
         super().__init__()
         self.tab_count = 0
+        self.theme_file_path = "styles.json"  # Default path for the theme file
         
         # Load styles and initialize UI
-        self.styles = self.load_styles()  
+        self.styles = self.load_styles(self.theme_file_path)  
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
+        
+        # Create ExtensionManager instance
+        self.extension_manager = ExtensionManager(self)
+        
+        # Connect extension signals to slots
+        self.extension_manager.extension_enabled.connect(self.on_extension_enabled)
+        self.extension_manager.extension_disabled.connect(self.on_extension_disabled)
         
         self.add_new_tab()  # Create the initial tab
 
@@ -28,13 +40,13 @@ class Browser(QMainWindow):
         forward_btn.clicked.connect(self.current_browser().forward)
         
         refresh_btn = QPushButton('⟳')
-        refresh_btn.clicked.connect(self.refresh_current_tab)  # Connect to the refresh method
+        refresh_btn.clicked.connect(self.refresh_current_tab)
 
         # Create a horizontal layout for the buttons and URL bar
         nav_layout = QHBoxLayout()
         nav_layout.addWidget(back_btn)
         nav_layout.addWidget(forward_btn)
-        nav_layout.addWidget(refresh_btn)  # Add the refresh button to the layout
+        nav_layout.addWidget(refresh_btn)
         nav_layout.addWidget(self.url_bar)
 
         # Create the main vertical layout
@@ -47,26 +59,38 @@ class Browser(QMainWindow):
         self.setCentralWidget(container)
 
         self.create_menu()
-        self.tabs.currentChanged.connect(self.update_url_bar)  # Update URL bar on tab change
+        self.tabs.currentChanged.connect(self.update_url_bar)
 
-        self.set_styles()  # Set initial styles
+        self.set_styles()
 
         self.show()
         
+        # Load cookies from a file if it exists
+        self.load_cookies()
+    
+    def show_settings(self):
+        settings_dialog = SettingsDialog(self)
+        settings_dialog.exec_()
+
+
     def keyPressEvent(self, event):
-        # Check for Ctrl + N
-        if event.key() == Qt.Key_N and event.modifiers() == Qt.ControlModifier:
+        key = event.key()
+        modifiers = event.modifiers()
+        if key == Qt.Key_N and modifiers == Qt.ControlModifier:
             self.add_new_tab()
+        elif key == Qt.Key_W and modifiers == Qt.ControlModifier:
+            self.close_tab(self.tabs.currentIndex())
 
     def refresh_current_tab(self):
         if self.current_browser() is not None:
             self.current_browser().reload()
 
-
-    def load_styles(self):
-        # Load styles from JSON file
-        with open("styles.json", "r") as file:
-            return json.load(file)
+    def load_styles(self, file_path):
+        # Load styles from the specified JSON file
+        if os.path.exists(file_path):
+            with open(file_path, "r") as file:
+                return json.load(file)
+        return {}
 
     def json_to_stylesheet(self, styles):
         stylesheet = ""
@@ -76,85 +100,92 @@ class Browser(QMainWindow):
         return stylesheet
 
     def set_styles(self):
-        # Construct the stylesheet from the JSON structure
         stylesheet = self.json_to_stylesheet(self.styles)
-        
-        # Apply the constructed stylesheet
         self.setStyleSheet(stylesheet)
-
 
     def create_menu(self):
         menu_bar = self.menuBar()
-
-        # Create the File menu
         file_menu = menu_bar.addMenu('File')
-        new_tab_action = QAction('New Tab(Ctrl + N)', self)
+        new_tab_action = QAction('New Tab (Ctrl + N)', self)
         file_menu.addAction(new_tab_action)
 
-        # Create the Help menu
+        theme_menu = menu_bar.addMenu('Theme')
+        theme_action = QAction('Set Theme File', self)
+        theme_menu.addAction(theme_action)
+
         help_menu = menu_bar.addMenu('Help')
         about_action = QAction('About', self)
         help_menu.addAction(about_action)
         
-        # Create the Help menu
-        help_menu = menu_bar.addMenu('Theme')
-        about_action = QAction('Set file', self)
-        help_menu.addAction(about_action)
+        settings_menu = menu_bar.addMenu('Settings')
+        settings_action = QAction('Preferences', self)
+        settings_menu.addAction(settings_action)
 
         # Connect actions to methods
         new_tab_action.triggered.connect(self.add_new_tab)
+        theme_action.triggered.connect(self.set_theme_file)
         about_action.triggered.connect(self.show_about)
+        settings_action.triggered.connect(self.show_settings)
+        extensions_menu = menu_bar.addMenu('Extensions')
+            
+        for ext_name in self.extension_manager.extensions.keys():
+            enable_action = QAction(f'Enable {ext_name}', self)
+            enable_action.triggered.connect(lambda _, name=ext_name: self.extension_manager.enable_extension(name))
+            extensions_menu.addAction(enable_action)
+
+            disable_action = QAction(f'Disable {ext_name}', self)
+            disable_action.triggered.connect(lambda _, name=ext_name: self.extension_manager.disable_extension(name))
+            extensions_menu.addAction(disable_action)
+
+            remove_action = QAction(f'Remove {ext_name}', self)
+            remove_action.triggered.connect(lambda _, name=ext_name: self.extension_manager.remove_extension(name))
+            extensions_menu.addAction(remove_action)
+            
+    def on_extension_enabled(self, name):
+        QMessageBox.information(self, "Extension Enabled", f"Extension '{name}' has been enabled.")
+
+    def on_extension_disabled(self, name):
+        QMessageBox.information(self, "Extension Disabled", f"Extension '{name}' has been disabled.")
 
     def add_new_tab(self):
         self.tab_count += 1
-
-        # Create a new QWebEngineView
         new_browser = QWebEngineView()
         
-        # Set the custom user agent
-        custom_user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Netrophobe/1.0 Chrome/87.0.4280.144 Safari/537.36"
+        custom_user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Netrophobe/1.0 Safari/537.36"
         profile = QWebEngineProfile.defaultProfile()
         profile.setHttpUserAgent(custom_user_agent)
 
-        # Set the initial URL
         new_browser.setUrl(QUrl('http://www.google.com'))
-
         new_browser.titleChanged.connect(lambda title: self.update_tab_title(title, self.tab_count))
 
-        # Add the new tab
         self.tabs.addTab(new_browser, "New Tab")
         self.tabs.setCurrentWidget(new_browser)
 
-        # Add close button to the tab
-        close_button = QPushButton('x', self) # TODO Doesnt show the fucking x for some reason
-        close_button.setFixedSize(20, 20)
-        close_button.setObjectName("CloseButton")
-        close_button.clicked.connect(lambda: self.close_tab(self.tab_count - 1))  # Close the tab
+        close_button = QPushButton('×', self)
+        close_button.setFixedSize(26, 25)
+        close_button.clicked.connect(lambda: self.close_tab(self.tab_count - 1))
         self.tabs.tabBar().setTabButton(self.tabs.indexOf(new_browser), QTabBar.RightSide, close_button)
-        
+
     def close_tab(self, index):
-        if self.tabs.count() > 1:  # Prevent closing the last tab
+        if self.tabs.count() > 1:
             self.tabs.removeTab(index)
 
     def navigate_to_url(self, url=None):
-        if url is None:  # If no URL is provided, get it from the URL bar
+        if url is None:
             url = self.url_bar.text().strip()
         
-        # Check if the input is a search
         if not url.startswith('http://') and not url.startswith('https://'):
-            # If the input doesn't contain a dot, assume it's a search query
             if '.' not in url:
-                search_query = '+'.join(url.split())  # Replace spaces with '+'
+                search_query = '+'.join(url.split())
                 url = f'https://www.google.com/search?q={search_query}'
             else:
-                url = 'http://' + url  # Otherwise, treat it as a URL
+                url = 'http://' + url
         
         self.current_browser().setUrl(QUrl(url))
         self.update_url_bar()
 
-
     def current_browser(self):
-        return self.tabs.currentWidget()  # Get the currently active QWebEngineView
+        return self.tabs.currentWidget()
 
     def update_url_bar(self):
         current_url = self.current_browser().url().toString()
@@ -166,3 +197,54 @@ class Browser(QMainWindow):
     def show_about(self):
         self.add_new_tab()
         self.navigate_to_url("https://github.com/hydrophobis/Netrophobe")
+
+    def set_theme_file(self):
+        options = QFileDialog.Options()  # Initialize options
+        options |= QFileDialog.ReadOnly  # Set to read-only
+        file_name, _ = QFileDialog.getOpenFileName(self, 
+                                                    "Select Theme File", 
+                                                    "", 
+                                                    "JSON Files (*.json);;All Files (*)", 
+                                                    options=options)  # Pass options as a keyword argument
+
+        if file_name:
+            self.theme_file_path = file_name  # Save the selected file path
+            self.styles = self.load_styles(self.theme_file_path)
+            if self.styles:  # Ensure styles were loaded
+                self.set_styles()
+                self.save_theme_file_path()  # Save the path for future use
+            else:
+                print("No valid styles found in the selected file.")
+
+
+
+
+    def save_theme_file_path(self):
+        # Save the theme file path to a JSON file
+        with open("theme_path.json", "w") as file:
+            json.dump({"theme_file": self.theme_file_path}, file)
+
+    def load_cookies(self):
+        # Load cookies if they exist
+        cookies_file = "cookies.json"
+        if os.path.exists(cookies_file):
+            with open(cookies_file, "r") as file:
+                cookies = json.load(file)
+                profile = QWebEngineProfile.defaultProfile()
+                for cookie in cookies:
+                    profile.cookieStore().setCookie(cookie)
+
+    def closeEvent(self, event):
+        # Save cookies to a file when closing the application
+        cookies_file = "cookies.json"
+        profile = QWebEngineProfile.defaultProfile()
+        cookies = []
+        profile.cookieStore().allCookies().then(lambda all_cookies: [
+            cookies.append(cookie) for cookie in all_cookies
+        ])
+        
+        with open(cookies_file, "w") as file:
+            json.dump(cookies, file)
+
+        event.accept()
+        

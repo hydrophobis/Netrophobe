@@ -3,17 +3,17 @@
         "background-color": "#ff3333"
     },
     "QPushButton": {
-        "background-color": "#0078d7",
+        "background-color": "#40424a",
         "color": "white",
         "border": "none",
         "border-radius": "10px",
         "padding": "5px 10px"
     },
     "QPushButton:hover": {
-        "background-color": "#0056a1"
+        "background-color": "#4d4f57"
     },
     "QPushButton:pressed": {
-        "background-color": "#003c70"
+        "background-color": "#21232b"
     },
 
 
