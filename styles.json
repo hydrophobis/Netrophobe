@@ -1,4 +1,7 @@
 {
+    ".CloseButton": {
+        "background-color": "#ff3333"
+    },
     "QPushButton": {
         "background-color": "#0078d7",
         "color": "white",
@@ -12,12 +15,25 @@
     "QPushButton:pressed": {
         "background-color": "#003c70"
     },
+
+
+    "QTabWidget:pane": {
+        "border": "1px solid #ccc;"
+    },
+    "QTabBar:tab": {
+        "background": "#ffffff;",
+        "padding": "10px;",
+        "border-radius": "5px"
+    },
+    "QTabBar:tab:selected": {
+        "background": "#d0d0d0;"
+    },
+    "QTabBar:tab:hover": {
+        "background": "#e0e0e0;"
+    },
+
     "QMainWindow": {
         "background-color": "#ffffff"
-    },
-    "QTabWidget": {
-        "border": "1px solid #ccc",
-        "border-radius": "10px"
     },
     "QLineEdit": {
         "border": "1px solid #aaa",
