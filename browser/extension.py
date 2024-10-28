@@ -12,6 +12,7 @@ class ExtensionManager(QObject):
         self.extensions = {}
         self.load_extensions()
 
+    # Loads extensions from the extension dir
     def load_extensions(self):
         # Load extensions from a directory (e.g., "extensions/")
         extension_dir = "extensions/"
@@ -22,6 +23,7 @@ class ExtensionManager(QObject):
             if filename.endswith('.json'):
                 self.load_extension(os.path.join(extension_dir, filename))
 
+    # Loads an extension given the path
     def load_extension(self, path):
         with open(path, 'r') as file:
             data = QJsonDocument.fromJson(file.read().encode()).object()
@@ -29,6 +31,7 @@ class ExtensionManager(QObject):
             self.extensions[name] = data
             print(f"Loaded extension: {name}")
 
+    # Enables an extension
     def enable_extension(self, name):
         if name in self.extensions:
             # Implement enabling logic
@@ -43,6 +46,7 @@ class ExtensionManager(QObject):
         else:
             QMessageBox.warning(self.browser, "Error", f"Extension '{name}' not found.")
 
+    # Disables an extension
     def disable_extension(self, name):
         if name in self.extensions:
             # Implement disabling logic (if needed)
@@ -51,6 +55,7 @@ class ExtensionManager(QObject):
         else:
             QMessageBox.warning(self.browser, "Error", f"Extension '{name}' not found.")
 
+    # Removes an extension
     def remove_extension(self, name):
         if name in self.extensions:
             del self.extensions[name]
@@ -58,6 +63,7 @@ class ExtensionManager(QObject):
         else:
             QMessageBox.warning(self.browser, "Error", f"Extension '{name}' not found.")
 
+    # Executes a javascript file as an extension
     def execute_script(self, script_name):
         # Example: Load and execute a JavaScript file
         script_path = os.path.join("extensions/scripts", script_name)

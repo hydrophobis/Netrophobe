@@ -1,16 +1,18 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QMenuBar, QAction, QTabWidget
+import os
+import json
+
+from PyQt5.QtWidgets import QMainWindow, QLineEdit, QPushButton, QTabWidget, QMessageBox, QTabBar
+from PyQt5.QtWidgets import  QVBoxLayout, QHBoxLayout, QWidget, QAction, QFileDialog
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt
 from PyQt5.QtWebEngineWidgets import QWebEngineProfile
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QTabBar, QFileDialog, QMessageBox
-from PyQt5.QtGui import QFont
-import json
-import os
+from PyQt5.QtCore import QEventLoop
 
 from browser.extension import ExtensionManager
 from browser.settings import SettingsDialog
 
 class Browser(QMainWindow):
+    # Initializer
     def __init__(self):
         super().__init__()
         self.tab_count = 0
@@ -68,11 +70,12 @@ class Browser(QMainWindow):
         # Load cookies from a file if it exists
         self.load_cookies()
     
+    # Shows the settings menu
     def show_settings(self):
         settings_dialog = SettingsDialog(self)
         settings_dialog.exec_()
 
-
+    # Handles keybinds like Ctrl + N
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
@@ -81,10 +84,12 @@ class Browser(QMainWindow):
         elif key == Qt.Key_W and modifiers == Qt.ControlModifier:
             self.close_tab(self.tabs.currentIndex())
 
+    # Used for the reload button
     def refresh_current_tab(self):
         if self.current_browser() is not None:
             self.current_browser().reload()
 
+    # Loads styles from a file
     def load_styles(self, file_path):
         # Load styles from the specified JSON file
         if os.path.exists(file_path):
@@ -92,6 +97,7 @@ class Browser(QMainWindow):
                 return json.load(file)
         return {}
 
+    # Converts a json file to a proper style sheet
     def json_to_stylesheet(self, styles):
         stylesheet = ""
         for selector, properties in styles.items():
@@ -99,10 +105,12 @@ class Browser(QMainWindow):
             stylesheet += f"{selector} {{{props};}}\n"
         return stylesheet
 
+    # Refreshed the current style
     def set_styles(self):
         stylesheet = self.json_to_stylesheet(self.styles)
         self.setStyleSheet(stylesheet)
 
+    # Creates the top menu
     def create_menu(self):
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu('File')
@@ -141,12 +149,15 @@ class Browser(QMainWindow):
             remove_action.triggered.connect(lambda _, name=ext_name: self.extension_manager.remove_extension(name))
             extensions_menu.addAction(remove_action)
             
+    # Logs extension enabling
     def on_extension_enabled(self, name):
         QMessageBox.information(self, "Extension Enabled", f"Extension '{name}' has been enabled.")
 
+    # Logs extension disabling
     def on_extension_disabled(self, name):
         QMessageBox.information(self, "Extension Disabled", f"Extension '{name}' has been disabled.")
 
+    # Adds a new tab tp the tab bar
     def add_new_tab(self):
         self.tab_count += 1
         new_browser = QWebEngineView()
@@ -166,10 +177,12 @@ class Browser(QMainWindow):
         close_button.clicked.connect(lambda: self.close_tab(self.tab_count - 1))
         self.tabs.tabBar().setTabButton(self.tabs.indexOf(new_browser), QTabBar.RightSide, close_button)
 
+    # Closes a tab given an index, defaults to the current tab if there isnt an index given
     def close_tab(self, index):
         if self.tabs.count() > 1:
             self.tabs.removeTab(index)
 
+    # Navigates the current tab to the given url
     def navigate_to_url(self, url=None):
         if url is None:
             url = self.url_bar.text().strip()
@@ -184,20 +197,25 @@ class Browser(QMainWindow):
         self.current_browser().setUrl(QUrl(url))
         self.update_url_bar()
 
+    # Returns the current QWebEngineView
     def current_browser(self):
         return self.tabs.currentWidget()
 
+    # Updates the name in the tab  title
     def update_url_bar(self):
         current_url = self.current_browser().url().toString()
         self.url_bar.setText(current_url)
 
+    # Only used for update_url_bar
     def update_tab_title(self, title, tab_index):
         self.tabs.setTabText(tab_index - 1, title)
 
+    # About menu action
     def show_about(self):
         self.add_new_tab()
         self.navigate_to_url("https://github.com/hydrophobis/Netrophobe")
 
+    # Set theme menu action
     def set_theme_file(self):
         options = QFileDialog.Options()  # Initialize options
         options |= QFileDialog.ReadOnly  # Set to read-only
@@ -218,12 +236,13 @@ class Browser(QMainWindow):
 
 
 
-
+    # Only used for set_theme_file
     def save_theme_file_path(self):
         # Save the theme file path to a JSON file
         with open("theme_path.json", "w") as file:
             json.dump({"theme_file": self.theme_file_path}, file)
 
+    # WIP Loads cookies
     def load_cookies(self):
         # Load cookies if they exist
         cookies_file = "cookies.json"
@@ -234,17 +253,31 @@ class Browser(QMainWindow):
                 for cookie in cookies:
                     profile.cookieStore().setCookie(cookie)
 
+    # TODO Broken
+    # Run when the browser is closed
     def closeEvent(self, event):
         # Save cookies to a file when closing the application
         cookies_file = "cookies.json"
         profile = QWebEngineProfile.defaultProfile()
-        cookies = []
-        profile.cookieStore().allCookies().then(lambda all_cookies: [
-            cookies.append(cookie) for cookie in all_cookies
-        ])
-        
-        with open(cookies_file, "w") as file:
-            json.dump(cookies, file)
+        cookie_store = profile.cookieStore()
+
+        # Create an event loop to wait for cookies
+        loop = QEventLoop()
+
+        # Define a function to handle the retrieved cookies
+        def handle_cookies(cookies):
+            # Save cookies to a file
+            with open(cookies_file, "w") as file:
+                json.dump(cookies, file)
+            loop.quit()
+
+        # Fetch cookies using getCookies() and connect the result
+        cookie_store.loadAllCookies()
+
+        # Start the event loop
+        loop.exec_()
 
         event.accept()
+
+
         
