@@ -1,7 +1,4 @@
 {
-    ".CloseButton": {
-        "background-color": "#ff3333"
-    },
     "QPushButton": {
         "background-color": "#40424a",
         "color": "white",
